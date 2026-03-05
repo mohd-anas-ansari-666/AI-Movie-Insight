@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { fetchMovie } from "@/lib/omdb";
 import { analyzeWithGemini } from "@/lib/gemini";
 import { basicSentimentAnalysis } from "@/lib/sentimentFallback";
+import { fetchIMDbReviews } from "@/lib/imdbReviews";
+
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
@@ -18,14 +21,9 @@ export async function POST(req: Request) {
     // Fetch movie details from OMDb
     const movie = await fetchMovie(imdbId);
 
-    // Mock reviews (IMDb scraping restricted)
-    const reviews: string[] = [
-      "This movie is a masterpiece with amazing performances.",
-      "Great visuals and excellent storytelling.",
-      "A bit slow in the middle but overall good experience.",
-      "Not bad but could have been better.",
-      "Fantastic direction and emotional depth."
-    ];
+    const reviews = await fetchIMDbReviews(imdbId);
+
+    console.log("Scraped reviews:", reviews);
 
     let aiSummary = "";
     let sentiment: "positive" | "mixed" | "negative" = "mixed";
