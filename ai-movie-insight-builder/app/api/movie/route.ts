@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     let sentiment: "positive" | "mixed" | "negative" = "mixed";
 
     try {
-      aiSummary = await analyzeWithGemini(reviews);
+      aiSummary = (await analyzeWithGemini(reviews)) || "";
 
       const match = aiSummary.match(
         /Sentiment:\s*(positive|mixed|negative)/i
