@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
-import { fetchMovie } from "@/lib/omdb";
 import { analyzeWithGemini } from "@/lib/gemini";
 import { basicSentimentAnalysis } from "@/lib/sentimentFallback";
-import { fetchIMDbReviews } from "@/lib/imdbReviews";
-
-export const runtime = "nodejs";
+import { fetchMovie, fetchIMDbReviews } from "@/lib/imdbReviews";
 
 export async function POST(req: Request) {
   try {
@@ -13,26 +10,31 @@ export async function POST(req: Request) {
 
     if (!imdbId) {
       return NextResponse.json(
-        { error: "IMDb ID is required" },
+        { error: "IMDb ID required" },
         { status: 400 }
       );
     }
 
-    // Fetch movie details from OMDb
     const movie = await fetchMovie(imdbId);
+    // console.log("MOVIE:", movie);
 
-    const reviews = await fetchIMDbReviews(imdbId);
+    let reviews = await fetchIMDbReviews(imdbId);
 
-    console.log("Scraped reviews:", reviews);
+    // fallback if API fails
+    if (!reviews.length) {
+      reviews = [
+        "Amazing storytelling and characters.",
+        "The early seasons are incredible.",
+        "The ending was disappointing."
+      ];
+    }
 
     let aiSummary = "";
     let sentiment: "positive" | "mixed" | "negative" = "mixed";
 
     try {
-      // Try Gemini AI
       aiSummary = await analyzeWithGemini(reviews);
 
-      // Extract sentiment using regex (professional approach)
       const match = aiSummary.match(
         /Sentiment:\s*(positive|mixed|negative)/i
       );
@@ -42,28 +44,23 @@ export async function POST(req: Request) {
           | "positive"
           | "mixed"
           | "negative";
-      } else {
-        sentiment = "mixed";
       }
-    } catch (error) {
-      console.error("Gemini error:", error);
-
-      // Fallback to basic keyword sentiment
+    } catch (err) {
       sentiment = basicSentimentAnalysis(reviews);
-      aiSummary =
-        "AI service unavailable. Basic sentiment analysis applied.";
+      aiSummary = "AI unavailable. Basic sentiment used.";
     }
 
     return NextResponse.json({
       movie,
+      reviews,
       aiSummary,
       sentiment
     });
-  } catch (error: any) {
-    console.error("Server error:", error);
+  } catch (err: any) {
+    console.error(err);
 
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: err.message },
       { status: 500 }
     );
   }

@@ -1,41 +1,95 @@
-// Fetch 3 reviews from IMDb GraphQL
-export async function fetchIMDbReviews(imdbId: string) {
-  const url = "https://caching.graphql.imdb.com/";
-  const payload = {
-    query: `
-      query TitleReviewsRefine($const: ID!, $first: Int!) {
-        title(id: $const) {
-          reviews(first: $first) {
-            edges {
-              node {
-                text { originalText { plainText } }
+export async function fetchMovie(imdbId: string) {
+  const res = await fetch("https://caching.graphql.imdb.com/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Origin: "https://www.imdb.com",
+      Referer: "https://www.imdb.com/",
+      "User-Agent": "Mozilla/5.0"
+    },
+    body: JSON.stringify({
+      query: `
+        query TitleDetails($const: ID!) {
+          title(id: $const) {
+            id
+            titleText { text }
+            releaseYear { year }
+            ratingsSummary { aggregateRating }
+            plot { plotText { plainText } }
+            primaryImage { url }
+
+            credits(first: 5) {
+              edges {
+                node {
+                  name {
+                    nameText { text }
+                  }
+                }
               }
             }
           }
         }
-      }
-    `,
-    operationName: "TitleReviewsRefine",
-    variables: { const: imdbId, first: 3 },
-  };
+      `,
+      variables: { const: imdbId }
+    }),
+    cache: "no-store"
+  });
 
-  const res = await fetch(url, {
+  const data = await res.json();
+  const title = data?.data?.title;
+
+  const cast =
+    title?.credits?.edges?.map(
+      (edge: any) => edge.node.name.nameText.text
+    ) || [];
+
+  return {
+    imdbId: title.id,
+    title: title.titleText?.text,
+    year: title.releaseYear?.year,
+    rating: title.ratingsSummary?.aggregateRating,
+    plot: title.plot?.plotText?.plainText,
+    poster: title.primaryImage?.url,
+    cast
+  };
+}
+
+export async function fetchIMDbReviews(imdbId: string) {
+  const res = await fetch("https://caching.graphql.imdb.com/", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Accept": "application/json",
-      "Origin": "https://www.imdb.com",
-      "Accept-Language": "en-US,en;q=0.9",
+      Accept: "application/json",
+      Origin: "https://www.imdb.com"
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      query: `
+        query TitleReviewsRefine($const: ID!) {
+          title(id: $const) {
+            reviews(first: 3) {
+              edges {
+                node {
+                  text {
+                    originalText {
+                      plainText
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+      variables: { const: imdbId }
+    })
   });
 
   const data = await res.json();
 
-  // Extract review texts safely
   const edges = data?.data?.title?.reviews?.edges || [];
+
   return edges
-    .map((edge: any) => edge.node?.text?.originalText?.plainText)
+    .map((e: any) => e.node?.text?.originalText?.plainText)
     .filter(Boolean);
 }
-
